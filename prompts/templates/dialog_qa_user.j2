@@ -1,0 +1,32 @@
+---
+description: A template for answering questions about a dialog (user prompt)
+author: Calvin Ku
+version: 1.0.0
+---
+
+<instruction>
+<dialogue>
+{% for turn in dialogue_turns %}
+**{{ turn.speaker }}:** {{ turn.text }}
+{% endfor %}
+</dialogue>
+
+<question>
+{{ question_text }}
+
+<answer_choices>
+{% for choice in choices %}
+{{ loop.index0 }}. {{ choice }}
+{% endfor %}
+</answer_choices>
+</question>
+
+<output_format>
+Please analyze the dialogue above and answer each question. Provide your response in JSON format.
+
+For each question, provide:
+1. A short description of what was discussed in the conversation
+2. A brief explanation of your reasoning
+3. The index of the answer choice that you selected
+</output_format>
+</instruction>
