@@ -1,4 +1,4 @@
-# Conversation-Fact-Benchmark
+# Conversation Fact Benchmark
 
 ## Setup
 
@@ -68,8 +68,8 @@ To set up the datasets:
    mkdir -p datasets
    cd datasets
    # Replace with your actual HuggingFace dataset URLs
-   git clone https://huggingface.co/datasets/YOUR_USERNAME/dream
-   git clone https://huggingface.co/datasets/YOUR_USERNAME/truthful_qa
+   git clone https://huggingface.co/datasets/onionmonster/dream
+   git clone https://huggingface.co/datasets/onionmonster/truthful_qa
    ```
 
 2. **Or run the setup script**:
