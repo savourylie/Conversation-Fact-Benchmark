@@ -3,6 +3,7 @@ from typing import Dict, Any, Union
 import logging
 from data_models.dream import DreamEntry
 from data_models.truthful_qa import TruthfulQAEntry
+from data_models.msc import MSCEntry
 from data_models.response import Choice
 from prompts.utils import Prompt
 from prompts.prompt_manager import PromptManager
@@ -16,7 +17,7 @@ class LLMProvider(ABC):
         self.logger = logger or logging.getLogger(__name__)
     
     @abstractmethod
-    def query_model(self, entry: Union[DreamEntry, TruthfulQAEntry], question_idx: int = 0) -> Dict[str, Any]:
+    def query_model(self, entry: Union[DreamEntry, TruthfulQAEntry, MSCEntry], question_idx: int = 0) -> Dict[str, Any]:
         """Query the model with a dataset entry and question index"""
         pass
 
@@ -29,7 +30,7 @@ class OllamaProvider(LLMProvider):
         from llm.ollama import OllamaClient
         self.ollama_client = OllamaClient(model_name=model_name)
     
-    def query_model(self, entry: Union[DreamEntry, TruthfulQAEntry], question_idx: int = 0) -> Dict[str, Any]:
+    def query_model(self, entry: Union[DreamEntry, TruthfulQAEntry, MSCEntry], question_idx: int = 0) -> Dict[str, Any]:
         """Query Ollama model with combined prompt"""
         # Create combined prompt based on entry type
         combined_prompt = self._create_combined_prompt(entry, question_idx)
@@ -39,12 +40,14 @@ class OllamaProvider(LLMProvider):
         
         return result
     
-    def _create_combined_prompt(self, entry: Union[DreamEntry, TruthfulQAEntry], question_idx: int) -> str:
+    def _create_combined_prompt(self, entry: Union[DreamEntry, TruthfulQAEntry, MSCEntry], question_idx: int) -> str:
         """Create combined system + user prompt for Ollama based on entry type"""
         if isinstance(entry, DreamEntry):
             return self._create_dream_combined_prompt(entry, question_idx)
         elif isinstance(entry, TruthfulQAEntry):
             return self._create_truthful_qa_combined_prompt(entry)
+        elif isinstance(entry, MSCEntry):
+            return self._create_msc_combined_prompt(entry)
         else:
             raise ValueError(f"Unsupported entry type: {type(entry)}")
 
@@ -85,6 +88,23 @@ class OllamaProvider(LLMProvider):
         combined_prompt = f"{system_prompt}\n\n{user_prompt}"
         return combined_prompt
 
+    def _create_msc_combined_prompt(self, entry: MSCEntry) -> str:
+        """Create combined prompt for MSC dataset"""
+        # Get system prompt
+        system_prompt = PromptManager.get_prompt("msc_qa_system")
+        
+        # Get user prompt
+        user_prompt = PromptManager.get_prompt(
+            "msc_qa_user",
+            conversation_sessions=entry.haystack_sessions,
+            question_text=entry.question,
+            choices=entry.choices
+        )
+        
+        # Combine prompts (system first, then user)
+        combined_prompt = f"{system_prompt}\n\n{user_prompt}"
+        return combined_prompt
+
 
 class OpenRouterProvider(LLMProvider):
     """OpenRouter LLM provider"""
@@ -92,7 +112,7 @@ class OpenRouterProvider(LLMProvider):
     def __init__(self, model_name: str, logger: logging.Logger = None):
         super().__init__(model_name, logger)
     
-    def query_model(self, entry: Union[DreamEntry, TruthfulQAEntry], question_idx: int = 0) -> Dict[str, Any]:
+    def query_model(self, entry: Union[DreamEntry, TruthfulQAEntry, MSCEntry], question_idx: int = 0) -> Dict[str, Any]:
         """Query OpenRouter model with separate system/user prompts"""
         from llm.openrouter import call_openrouter
         import time
@@ -128,12 +148,14 @@ class OpenRouterProvider(LLMProvider):
                 'error': str(e)
             }
     
-    def _create_prompt(self, entry: Union[DreamEntry, TruthfulQAEntry], question_idx: int) -> Prompt:
+    def _create_prompt(self, entry: Union[DreamEntry, TruthfulQAEntry, MSCEntry], question_idx: int) -> Prompt:
         """Create separate system and user prompts based on entry type"""
         if isinstance(entry, DreamEntry):
             return self._create_dream_prompt(entry, question_idx)
         elif isinstance(entry, TruthfulQAEntry):
             return self._create_truthful_qa_prompt(entry)
+        elif isinstance(entry, MSCEntry):
+            return self._create_msc_prompt(entry)
         else:
             raise ValueError(f"Unsupported entry type: {type(entry)}")
 
@@ -170,11 +192,28 @@ class OpenRouterProvider(LLMProvider):
         
         return Prompt(system=system_prompt, user=user_prompt)
 
-    def _get_choices_length(self, entry: Union[DreamEntry, TruthfulQAEntry], question_idx: int) -> int:
+    def _create_msc_prompt(self, entry: MSCEntry) -> Prompt:
+        """Create separate system and user prompts for MSC dataset"""
+        # Get system prompt
+        system_prompt = PromptManager.get_prompt("msc_qa_system")
+        
+        # Get user prompt
+        user_prompt = PromptManager.get_prompt(
+            "msc_qa_user",
+            conversation_sessions=entry.haystack_sessions,
+            question_text=entry.question,
+            choices=entry.choices
+        )
+        
+        return Prompt(system=system_prompt, user=user_prompt)
+
+    def _get_choices_length(self, entry: Union[DreamEntry, TruthfulQAEntry, MSCEntry], question_idx: int) -> int:
         """Get the number of choices for the given entry and question"""
         if isinstance(entry, DreamEntry):
             return len(entry.questions[question_idx].choices)
         elif isinstance(entry, TruthfulQAEntry):
+            return len(entry.choices)
+        elif isinstance(entry, MSCEntry):
             return len(entry.choices)
         else:
             raise ValueError(f"Unsupported entry type: {type(entry)}")

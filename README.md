@@ -58,9 +58,32 @@
 
 ### Dataset Setup
 
-This project uses datasets managed through HuggingFace. The `datasets/` folder is excluded from this Git repository.
+This project supports multiple conversation and fact-checking datasets:
 
-To set up the datasets:
+#### Supported Datasets
+
+1. **DREAM** - Dialog-based Reading comprehension ExAmination through understanding and reasoning
+2. **TruthfulQA** - Questions that test whether a language model is truthful
+3. **MSC-MemFuse-MC10** - Multi-Session Chat memory questions (10-way multiple choice)
+
+#### Setting up MSC Dataset
+
+The MSC (Multi-Session Chat) dataset tests conversational memory across multiple conversation sessions. To set it up:
+
+```bash
+# Run the MSC dataset setup script
+python setup_msc_dataset.py
+```
+
+This will:
+
+- Download the `Percena/msc-memfuse-mc10` dataset from HuggingFace
+- Transform it to the benchmark format
+- Save it to `datasets/msc/processed/msc_memfuse_mc10_transformed.json`
+
+#### Setting up Other Datasets
+
+For DREAM and TruthfulQA datasets:
 
 1. **Clone your HuggingFace dataset repositories**:
 
@@ -80,6 +103,8 @@ To set up the datasets:
 
 ### Running the Benchmark
 
+#### Basic Usage
+
 ```bash
 # Make sure you're in the project directory and virtual environment is active
 uv run python main.py
@@ -87,3 +112,35 @@ uv run python main.py
 # Or if you've activated the virtual environment manually:
 python main.py
 ```
+
+#### Dataset-Specific Examples
+
+**MSC (Multi-Session Chat) Dataset:**
+
+```bash
+# Run evaluation on MSC dataset with Ollama
+python main.py -d datasets/msc/processed/msc_memfuse_mc10_transformed.json -p ollama -m llama3.2:latest -n 20
+
+# Run evaluation on MSC dataset with OpenRouter
+export OPENROUTER_API_KEY="your_api_key_here"
+python main.py -d datasets/msc/processed/msc_memfuse_mc10_transformed.json -p openrouter -m anthropic/claude-3-sonnet -n 10
+```
+
+**DREAM Dataset:**
+
+```bash
+python main.py -d datasets/dream/processed/full_transformed.json -p ollama -m llama3.2:latest -n 20
+```
+
+**TruthfulQA Dataset:**
+
+```bash
+python main.py -d datasets/truthful_qa/processed/truthful_qa_transformed.json -p ollama -m llama3.2:latest -n 20
+```
+
+#### Command Line Arguments
+
+- `-d, --dataset`: Path to dataset file (automatically detects DREAM, TruthfulQA, or MSC format)
+- `-p, --provider`: LLM provider (`ollama` or `openrouter`)
+- `-m, --model`: Model name to evaluate
+- `-n, --max-samples`: Number of questions to evaluate (0 = full dataset)

@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from data_models.dream import DreamDataset, DreamEntry
 from data_models.truthful_qa import TruthfulQADataset, TruthfulQAEntry
+from data_models.msc import MSCDataset, MSCEntry
 from data_models.response import Choice
 from llm import LLMFactory, LLMProvider
 
@@ -43,7 +44,7 @@ class TestSuite:
         self.llm_provider = LLMFactory.create_provider(provider_type, model_name, logger)
         self.dataset_type = None
         
-    def load_dataset(self, dataset_path: str) -> Union[DreamDataset, TruthfulQADataset]:
+    def load_dataset(self, dataset_path: str) -> Union[DreamDataset, TruthfulQADataset, MSCDataset]:
         """Load dataset from JSONL format (expects .json extension for HuggingFace compatibility)"""
         if not os.path.exists(dataset_path):
             raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
@@ -73,14 +74,21 @@ class TestSuite:
             from data_processing.dream.transform import load_transformed_dataset_jsonl
             return load_transformed_dataset_jsonl(Path(dataset_path))
         elif 'question' in first_entry and 'choices' in first_entry and 'correct_choice_index' in first_entry:
-            self.dataset_type = 'truthful_qa'
-            # Import the load function from the transform module
-            from data_processing.truthful_qa.transform import load_transformed_dataset_jsonl
-            return load_transformed_dataset_jsonl(Path(dataset_path))
+            # Check if it's MSC or TruthfulQA based on additional fields
+            if 'haystack_sessions' in first_entry and 'haystack_session_ids' in first_entry:
+                self.dataset_type = 'msc'
+                # Import the load function from the transform module
+                from data_processing.msc.transform import load_transformed_dataset_jsonl
+                return load_transformed_dataset_jsonl(Path(dataset_path))
+            else:
+                self.dataset_type = 'truthful_qa'
+                # Import the load function from the transform module
+                from data_processing.truthful_qa.transform import load_transformed_dataset_jsonl
+                return load_transformed_dataset_jsonl(Path(dataset_path))
         else:
             raise ValueError(f"Unable to determine dataset type from JSONL file {dataset_path}")
     
-    def test_single_entry(self, entry: Union[DreamEntry, TruthfulQAEntry], question_idx: int = 0) -> TestResult:
+    def test_single_entry(self, entry: Union[DreamEntry, TruthfulQAEntry, MSCEntry], question_idx: int = 0) -> TestResult:
         """Test a single question from a dataset entry"""
         # Query model using the provider
         result = self.llm_provider.query_model(entry, question_idx)
@@ -93,6 +101,9 @@ class TestSuite:
         elif isinstance(entry, TruthfulQAEntry):
             correct_answer = entry.correct_choice_index
             entry_id = str(hash(entry.question))  # Use question hash as ID for TruthfulQA
+        elif isinstance(entry, MSCEntry):
+            correct_answer = entry.correct_choice_index
+            entry_id = entry.question_id
         else:
             raise ValueError(f"Unsupported entry type: {type(entry)}")
         
@@ -130,7 +141,7 @@ class TestSuite:
         # Calculate total questions based on dataset type
         if self.dataset_type == 'dream':
             total_questions = sum(len(entry.questions) for entry in dataset.entries)
-        else:  # truthful_qa
+        else:  # truthful_qa or msc
             total_questions = len(dataset.entries)  # One question per entry
         
         # Determine sample size
@@ -171,7 +182,7 @@ class TestSuite:
                     
                     questions_tested += 1
             else:
-                # TruthfulQA: One question per entry
+                # TruthfulQA or MSC: One question per entry
                 if questions_tested >= max_samples:
                     break
                     

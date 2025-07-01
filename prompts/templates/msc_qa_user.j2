@@ -1,0 +1,41 @@
+---
+description: A template for answering questions about multi-session conversations (user prompt)
+author: Calvin Ku
+version: 1.0.0
+---
+
+<instruction>
+<conversation_history>
+Below are {{ conversation_sessions|length }} conversation sessions between a user and an assistant. Please read through all sessions carefully as they contain information that will be needed to answer the question.
+
+{% for session in conversation_sessions %}
+=== Conversation Session {{ loop.index }} ===
+{% for message in session %}
+{% if message.role == 'user' %}**User:** {{ message.content }}{% else %}**Assistant:** {{ message.content }}{% endif %}
+{% endfor %}
+
+{% endfor %}
+</conversation_history>
+
+<question>
+Based on the conversation history above, please answer the following question:
+
+**Question:** {{ question_text }}
+
+<answer_choices>
+{% for choice in choices %}
+{{ loop.index0 }}. {{ choice }}
+{% endfor %}
+</answer_choices>
+</question>
+
+<output_format>
+Please analyze the multi-session conversation history above and answer the question. Provide your response in JSON format.
+
+Your response should include:
+1. A brief summary of what information was discussed related to the question
+2. A clear explanation of your reasoning, including which conversation session(s) contained the relevant information
+3. The index of the answer choice that you selected (0-based indexing)
+
+Make sure to base your answer only on information that was explicitly mentioned or clearly implied in the conversation sessions.
+</output_format> 
